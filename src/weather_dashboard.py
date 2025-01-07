@@ -15,25 +15,28 @@ class WeatherApp:
 
     def create_bucket(self):
         """ Create S3 bucket if it does not exist """
-        if self.client.exceptions.BucketAlreadyExists:
+        try:
+            self.client.head_bucket(Bucket=self.bucket_name)
             print(f"Bucket {self.bucket_name} already exists")
             print("Skipping creation")
             print("Proceeding to get weather data...")
             print()
-            pass
-        else:
-            try:
-                self.client.create_bucket(
-                    Bucket=self.bucket_name,
-                    CreateBucketConfiguration={
-                        'LocationConstraint': 'us-west-2'
-                    }
-                )
-                print(f"Bucket {self.bucket_name} created successfully")
-            except Exception as e:
-                print(f"Error creating bucket: {e}")
-                raise
-
+            return True
+        except self.client.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                try:
+                    self.client.create_bucket(
+                        Bucket=self.bucket_name,
+                        CreateBucketConfiguration={
+                            'LocationConstraint': 'us-west-2'
+                        }
+                    )
+                    print(f"Bucket {self.bucket_name} created successfully")
+                except self.client.exceptions.ClientError as e:
+                    print(f"Error creating bucket: {e}")
+            else:
+                return f"Error checking bucket: {e}"
+    
     def get_weather(self, city):
         """ Get weather data from OpenWeather API """
         url = "http://api.openweathermap.org/data/2.5/weather"
@@ -81,7 +84,7 @@ def main():
             print(f"Getting weather data for {city}...")
             weather_data = app.get_weather(city)
             if weather_data:
-                #app.save_to_s3(weather_data, city)
+                app.save_to_s3(weather_data, city)
                 description = weather_data["weather"][0]["description"]
                 temperature = weather_data["main"]["temp"]
                 feels_like = weather_data["main"]["feels_like"]
